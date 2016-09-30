@@ -1,0 +1,263 @@
+---
+title: "Kirby Repliction"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+library(tidyr)
+kirby<-read.csv("/Users/bryanxwu/Desktop/bryanxwu/Documents/Extra_Curricular/Research/Poldrack Lab/Practice/kirby.csv")
+```
+
+
+## Data Setup
+
+Here, I'll setup the data and make sure it's produced in a way that is consistent with the paper. This is attempt number one, using the approach below:
+
+Since we're looking at how well each predicted k value matched participant's choices, I simply assumed that every choice including and greater than that predicted k value should be an impulsive choice. So if we're looking at predicted k=0.1, how many times did the participant choose the smaller reward for values greater than or equal to 0.1 (knowing that all values including and greater than k should be impulsive). I did this for each k value and selected the parameter with the highest percent match. As the findings show below, this approach is probably wrong.  
+
+#### Creating Rewards
+```{r}
+
+
+# extract IDs 
+kirby<-separate(kirby,X, c("Kirby", "idtrial"), sep="kirby_")
+kirby<-kirby[,-1]
+kirby<-separate(kirby,idtrial, c("id", "trial"), sep="_")
+
+kirby2<-kirby
+
+# there are 36 participants, and 27 trials per 
+
+# create reward groups
+kirby2$reward[kirby2$large_amt>=75 & kirby2$large_amt<=85]<-3
+kirby2$reward[kirby2$large_amt>=50 & kirby2$large_amt<=60]<-2
+kirby2$reward[kirby2$large_amt>=25 & kirby2$large_amt<=35]<-1
+kirby2$reward[is.na(kirby2$large_amt)==TRUE]<-NA
+
+# check frequencies 
+library(dplyr)
+kirby2 %>%
+  filter(!is.na(reward)) %>%
+  group_by(reward) %>%
+  summarise(freq=n())
+```
+
+#### Coding discount rate 
+```{r}
+kirby2$kvalue[(kirby2$small_amt==34 & kirby2$large_amt==35)|(kirby2$small_amt==54 & kirby2$large_amt==55)|(kirby2$small_amt==78&kirby2$large_amt==80)]<-0.00016
+
+kirby2$kvalue[(kirby2$small_amt==28 & kirby2$large_amt==30)|(kirby2$small_amt==47 & kirby2$large_amt==50)|(kirby2$small_amt==80 & kirby2$large_amt==85)]<-0.00040
+
+kirby2$kvalue[(kirby2$small_amt==22 & kirby2$large_amt==25)|(kirby2$small_amt==54 & kirby2$large_amt==60)|(kirby2$small_amt==67 &kirby2$large_amt==75)]<-0.0010
+
+kirby2$kvalue[(kirby2$small_amt==25 & kirby2$large_amt==30)|(kirby2$small_amt==49 & kirby2$large_amt==60)|(kirby2$small_amt==69&kirby2$large_amt==85)]<-0.0025
+
+kirby2$kvalue[(kirby2$small_amt==19 & kirby2$large_amt==25)|(kirby2$small_amt==40& kirby2$large_amt==55)|(kirby2$small_amt==55&kirby2$large_amt==75)]<-0.0060
+
+kirby2$kvalue[(kirby2$small_amt==24 & kirby2$large_amt==35)|(kirby2$small_amt==34 & kirby2$large_amt==50)|(kirby2$small_amt==54&kirby2$large_amt==80)]<-0.016
+
+kirby2$kvalue[(kirby2$small_amt==14 & kirby2$large_amt==25)|(kirby2$small_amt==27 & kirby2$large_amt==50)|(kirby2$small_amt==41&kirby2$large_amt==75)]<-0.041
+
+kirby2$kvalue[(kirby2$small_amt==15 & kirby2$large_amt==35)|(kirby2$small_amt==25 & kirby2$large_amt==60)|(kirby2$small_amt==33&kirby2$large_amt==80)]<-0.10
+
+kirby2$kvalue[(kirby2$small_amt==11 & kirby2$large_amt==30)|(kirby2$small_amt==20 & kirby2$large_amt==55)|(kirby2$small_amt==31&kirby2$large_amt==85)]<-0.25
+
+kirby3<-kirby2 %>%
+  filter(!is.na(reward)) 
+
+kirby3<-kirby3[,-c(3:12, 16:18, 20:27)]
+
+length<-nrow(kirby3)
+for (i in 1:length){
+  if (kirby3$key_press[i]==80)
+    kirby3$key_press[i]=0
+  else kirby3$key_press[i]=1
+}
+# smaller, sooner is 1 and larger, later is 0
+
+```
+
+#### Estimating Parameters Part 1
+```{r}
+# start with just one parameter for every participant as a trial 
+
+for (i in 1:length){
+  if (kirby3$kvalue[i]>=0.00016)
+    kirby3$pred0.00016[i]=1
+  else kirby3$pred0.00016[i]=0
+}
+
+for (i in 1:length){
+  if (kirby3$kvalue[i]>=0.00040)
+    kirby3$pred0.00040[i]=1
+  else kirby3$pred0.00040[i]=0
+}
+
+for (i in 1:length){
+  if (kirby3$kvalue[i]>=0.00100)
+    kirby3$pred0.00100[i]=1
+  else kirby3$pred0.00100[i]=0
+}
+
+
+for (i in 1:length){
+  if (kirby3$kvalue[i]>=0.00250)
+    kirby3$pred0.00250[i]=1
+  else kirby3$pred0.00250[i]=0
+}
+
+for (i in 1:length){
+  if (kirby3$kvalue[i]>=0.00600)
+    kirby3$pred0.00600[i]=1
+  else kirby3$pred0.00600[i]=0
+}
+
+for (i in 1:length){
+  if (kirby3$kvalue[i]>=0.01600)
+    kirby3$pred0.01600[i]=1
+  else kirby3$pred0.01600[i]=0
+}
+
+for (i in 1:length){
+  if (kirby3$kvalue[i]>=0.04100)
+    kirby3$pred0.04100[i]=1
+  else kirby3$pred0.04100[i]=0
+}
+
+for (i in 1:length){
+  if (kirby3$kvalue[i]>=0.10000)
+    kirby3$pred0.10000[i]=1
+  else kirby3$pred0.10000[i]=0
+}
+
+for (i in 1:length){
+  if (kirby3$kvalue[i]>=0.25000)
+    kirby3$pred0.25000[i]=1
+  else kirby3$pred0.25000[i]=0
+}
+
+kirby4<-kirby3 %>%
+  group_by(id) %>%
+  summarise(match0.00016=(sum(pred0.00016==1&key_press==1)/sum(pred0.00016==1)),
+    match0.00040=(sum(pred0.00040==1&key_press==1)/sum(pred0.00040==1)),
+    match0.00100=(sum(pred0.00100==1&key_press==1)/sum(pred0.00100==1)),
+    match0.00250=(sum(pred0.00250==1&key_press==1)/sum(pred0.00250==1)),
+    match0.00600=(sum(pred0.00600==1&key_press==1)/sum(pred0.00600==1)),
+    match0.01600=(sum(pred0.01600==1&key_press==1)/sum(pred0.01600==1)),
+    match0.04100=(sum(pred0.04100==1&key_press==1)/sum(pred0.04100==1)),
+    match0.10000=(sum(pred0.10000==1&key_press==1)/sum(pred0.10000==1)),
+    match0.25000=(sum(pred0.25000==1&key_press==1)/sum(pred0.25000==1))
+  ) 
+
+# one problem, somehow I cannot arrange... despite even after trying to ungroup 
+
+# now to estimate the parameter 
+kirby5<-kirby4 %>%
+  group_by(id) %>%
+  gather(name,value,-id) %>%
+  slice(value %>%
+      {. == max(.)} %>%
+          which
+          )
+
+kirby5$parameter[kirby5$name=="match0.00016"]<-0.00016
+kirby5$parameter[kirby5$name=="match0.00040"]<-0.00040
+kirby5$parameter[kirby5$name=="match0.00100"]<-0.00100
+kirby5$parameter[kirby5$name=="match0.00250"]<-0.00250
+kirby5$parameter[kirby5$name=="match0.00600"]<-0.00600
+kirby5$parameter[kirby5$name=="match0.01600"]<-0.01600
+kirby5$parameter[kirby5$name=="match0.04100"]<-0.04100
+kirby5$parameter[kirby5$name=="match0.10000"]<-0.10000
+kirby5$parameter[kirby5$name=="match0.25000"]<-0.25000
+
+  
+# need to find geometric mean for some bounds...
+kirby5$id[duplicated(kirby5$id)==TRUE]
+
+# geometric mean 
+geo<-kirby5$parameter[duplicated(kirby5$id)==TRUE]
+kirby5$parameter[kirby5$id==33]<-((prod(geo))^(1/length(geo)))
+
+attempt1kirby6<-kirby5[-(29:36),-2]
+
+```
+
+A little messy, but it works. Now, onto the real task of estimating parameters by reward.
+
+#### Estimating Parameters Part 2
+``` {r}
+# first, flag any subects that may have chose immediate/delayed for all
+
+kirby3 %>%
+  group_by(id) %>%
+  summarise(freq=sum(key_press==1)) %>%
+  arrange(desc(freq))
+
+kirby3 %>%
+  group_by(id) %>%
+  summarise(freq=sum(key_press==0)) %>%
+  arrange(desc(freq))
+
+# subject 33, because participant answered sooner for all 
+
+# now, flag any subjects that answered all immediate or delayed for all trials in at least one of the reward sizes 
+
+kirby3 %>%
+  group_by(id, reward) %>%
+  summarise(freq=sum(key_press==1)) %>%
+  filter(freq==9) %>%
+  select(id) %>%
+  unique()
+  
+
+kirby3 %>%
+  group_by(id, reward) %>%
+  summarise(freq=sum(key_press==0)) %>%
+  filter(freq==9) %>%
+  select(id) %>%
+  unique()
+
+# remove subjects 1, 13, 14, 27, 33, 9, 31 
+
+kirby3$delete<-ifelse(kirby3$id==1|kirby3$id==13|kirby3$id==14 |kirby3$id==27| kirby3$id==33 |kirby3$id==9|kirby3$id==31, NA, 99)
+
+kirby7<-kirby3 %>%
+  filter(!is.na(delete)) %>%
+  group_by(id,reward) %>%
+  summarise(match0.00016=(sum(pred0.00016==1&key_press==1)/sum(pred0.00016==1)),
+    match0.00040=(sum(pred0.00040==key_press)/9),
+    match0.00100=(sum(pred0.00100==key_press)/9),
+    match0.00250=(sum(pred0.00250==key_press)/9),
+    match0.00600=(sum(pred0.00600==key_press)/9),
+    match0.01600=(sum(pred0.01600==key_press)/9),
+    match0.04100=(sum(pred0.04100==key_press)/9),
+    match0.10000=(sum(pred0.10000==key_press)/9),
+    match0.25000=(sum(pred0.25000==key_press)/9)
+  ) 
+
+kirby8<-kirby7 %>%
+  group_by(id,reward) %>%
+  gather(name,value,-reward,-id) %>%
+  slice(value %>%
+      {. == max(.)} %>%
+          which
+          ) 
+
+kirby8$parameter[kirby8$name=="match0.00016"]<-0.00016
+kirby8$parameter[kirby8$name=="match0.00040"]<-0.00040
+kirby8$parameter[kirby8$name=="match0.00100"]<-0.00100
+kirby8$parameter[kirby8$name=="match0.00250"]<-0.00250
+kirby8$parameter[kirby8$name=="match0.00600"]<-0.00600
+kirby8$parameter[kirby8$name=="match0.01600"]<-0.01600
+kirby8$parameter[kirby8$name=="match0.04100"]<-0.04100
+kirby8$parameter[kirby8$name=="match0.10000"]<-0.10000
+kirby8$parameter[kirby8$name=="match0.25000"]<-0.25000
+
+  
+# need to find geometric mean for some bounds...
+unique(kirby8$id[duplicated(kirby8[,1:2])==TRUE])
+attempt1kirby9<-kirby8[,-3]
+```
+Turns out that when removing subjects who answered all sooner/later across trials or in at least 1 reward group, there is a unique parameter for each participant
