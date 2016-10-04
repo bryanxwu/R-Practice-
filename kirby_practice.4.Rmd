@@ -149,8 +149,7 @@ kirby5$LrgSeq <- with (kirby5, key_press.6+ key_press.8+key_press.13+key_press.1
 #Remove unwanted columns
 kirby5[2:28] <- list(NULL)
 
-#Maintain row order
-kirby5$id <- 1:nrow(kirby5)
+
 
 #Merge in MCQindices from lookup table
 kirby5 <- (merge(lookup1, kirby5, by = 'SmlSeq'))
@@ -165,9 +164,12 @@ head(kirby5)
 kirby5 <- kirby5[c(13,9,10,11,12,5,6,7,8,1,2,3,4)]
 
 #Save MCQ indices to a text file
-write.table(kirby5, file="/Users/bryanxwu/Desktop/bryanxwu/Documents/Extra_Curricular/Research/Poldrack Lab/Practice/R-Practice-/Kirby/MCQ_Syntax/MCQindices.txt", row.names=FALSE)
 
-attempt4kirby5<-read.table("/Users/bryanxwu/Desktop/bryanxwu/Documents/Extra_Curricular/Research/Poldrack Lab/Practice/R-Practice-/Kirby/MCQ_Syntax/MCQindices.txt", header=TRUE)
+algorithm.results<-melt(kirby5, id.vars=c("id"), measure.vars=c("SmlK", "MedK", "LrgK"), variable.name="reward", value.name="parameter.algorithm")
 
+algorithm.results<-arrange(algorithm.results,id)
+
+
+write.table(algorithm.results, file="/Users/bryanxwu/Desktop/bryanxwu/Documents/Extra_Curricular/Research/Poldrack Lab/Practice/R-Practice-/Kirby/MCQ_Syntax/MCQindices.txt", row.names=FALSE)
 ```
 Success
