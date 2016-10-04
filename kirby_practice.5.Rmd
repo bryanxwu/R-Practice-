@@ -47,11 +47,13 @@ kirby.test$key_press<-ifelse(kirby.test$key_press==80, 1, 0)
 # Flag any subects that may have chose immediate/delayed for all
 
 kirby.test %>%
+  filter(!is.na(reward)) %>%
   group_by(id) %>%
   summarise(freq=sum(key_press==1)) %>%
   arrange(desc(freq)) 
 
 kirby.test %>%
+  filter(!is.na(reward)) %>%
   group_by(id) %>%
   summarise(freq=sum(key_press==0)) %>%
   arrange(desc(freq))
