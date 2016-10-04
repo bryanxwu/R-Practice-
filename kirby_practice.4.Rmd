@@ -16,6 +16,8 @@ kirby<-read.csv("/Users/bryanxwu/Desktop/bryanxwu/Documents/Extra_Curricular/Res
 
 Here, I'll setup the data and make sure it's produced in a way that is consistent with the paper. This is attempt number four, using what I interpreted as the parameter estimation method:
 
+AZE: WHEN REFERENCING PAPERS WE USE AUTHORS' NAMES (NOT PUBLISHERS').
+
 Following the Wiley paper's syntax. 
 
 #### Creating Rewards
@@ -173,3 +175,5 @@ algorithm.results<-arrange(algorithm.results,id)
 write.table(algorithm.results, file="/Users/bryanxwu/Desktop/bryanxwu/Documents/Extra_Curricular/Research/Poldrack Lab/Practice/R-Practice-/Kirby/MCQ_Syntax/MCQindices.txt", row.names=FALSE)
 ```
 Success
+
+AZE: HOW DO THESE COMPARE TO YOUR PREVIOUS ATTEMPT?
