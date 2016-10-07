@@ -17,7 +17,6 @@ kirby<-read.csv("/Users/bryanxwu/Desktop/bryanxwu/Documents/Extra_Curricular/Res
 
 This is the correct script to setup the estimated parameter values for Kirby's Monetary Choice Questionaire (1996).  
 
-
 #### Creating Rewards
 ```{r}
 
@@ -27,8 +26,8 @@ kirby.test<-subset(kirby,is.na(kirby$small_amt)==FALSE)
   
 
 # create reward groups
-kirby.test$reward<-ifelse((kirby.test$large_amt>=75 & kirby.test$large_amt<=85),3,
-                               ifelse((kirby.test$large_amt>=50 & kirby.test$large_amt<=60),2,1))
+kirby.test$reward<-ifelse((kirby.test$large_amt>=75 & kirby.test$large_amt<=85),"LrgK",
+                               ifelse((kirby.test$large_amt>=50 & kirby.test$large_amt<=60),"MedK","SmlK"))
 
 # check frequencies 
 with(kirby.test,table(worker_id,reward))
@@ -81,7 +80,7 @@ kirby.test$kvalue[(kirby.test$small_amt==11 & kirby.test$large_amt==30)|(kirby.t
 
 ```
 
-#### Estimating Parameters Part 1
+#### Estimating Parameters Part 1 (Overall k)
 ```{r}
 # start with just one parameter for every participant as a trial 
 
@@ -139,7 +138,7 @@ write.table(unique(kirby.overall.output[,c("worker_id", "consistency", "paramete
 
 Now to estimate separate parameter values for each reward amount 
 
-#### Estimating Parameters Part 2
+#### Estimating Parameters Part 2 (Reward k)
 ``` {r}
 
 # finding match percent 
@@ -182,8 +181,6 @@ Check with algorithm results for sanity check
 
 #### Sanity Check 
 ``` {r}
-kirby.reward.output$reward<-ifelse(kirby.reward.output$reward==1,"SmlK", ifelse(kirby.reward.output$reward==2,"MedK","LrgK"))
-
 
 kirby.reward.output<-merge(kirby.reward.output,read.table("/Users/bryanxwu/Desktop/bryanxwu/Documents/Extra_Curricular/Research/Poldrack Lab/Practice/R-Practice-/Kirby/MCQ_Syntax/MCQindices.txt", header=TRUE),by=c("worker_id","reward"))
 
