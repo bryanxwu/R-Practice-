@@ -151,9 +151,13 @@ kirby.algorithm <- kirby.algorithm[c(13,9,10,11,12,5,6,7,8,1,2,3,4)]
 
 #Save MCQ indices to a text file
 
-consistency.algorithm<-arrange(melt(kirby.algorithm, id.vars=c("worker_id"), measure.vars=c("SmlCons", "MedCons", "LrgCons"),variable.name=c("reward"), value.name="consistency",worker_id))[,3]
-kirby.algorithm<-cbind(arrange(melt(kirby.algorithm, id.vars=c("worker_id"), measure.vars=c("SmlK", "MedK", "LrgK"), variable.name=c("reward"), value.name="parameter.algorithm",worker_id)), consistency.algorithm)
+consistency.algorithm<-melt(kirby.algorithm, id.vars=c("worker_id"), measure.vars=c("SmlCons", "MedCons", "LrgCons"),variable.name=c("reward"), value.name="consistency")
 
+consistency.algorithm<-consistency.algorithm[,c("consistency")]
+
+kirby.algorithm<-cbind(melt(kirby.algorithm, id.vars=c("worker_id"), measure.vars=c("SmlK", "MedK", "LrgK"), variable.name=c("reward"), value.name="parameter.algorithm"), consistency.algorithm)
+
+kirby.algorithm$reward<-ifelse(kirby.algorithm$reward=="SmlK",1, ifelse(kirby.algorithm$reward=="MedK",2,3))
 
 
 write.table(kirby.algorithm, file="/Users/bryanxwu/Desktop/bryanxwu/Documents/Extra_Curricular/Research/Poldrack Lab/Practice/R-Practice-/Kirby/MCQ_Syntax/MCQindices.txt", row.names=FALSE)
