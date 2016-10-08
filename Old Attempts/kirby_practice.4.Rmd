@@ -1,0 +1,162 @@
+---
+title: "Kirby Algorithm Test"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+library(tidyr)
+library(reshape2)
+kirby<-read.csv("/Users/bryanxwu/Desktop/bryanxwu/Documents/Extra_Curricular/Research/Poldrack Lab/Practice/R-Practice-/Kirby/kirby.csv")
+```
+
+
+## Data Setup
+
+Here, I will generate the correct parameter values as estimated using the algorithm developed by Gray et al. (2016)
+
+#### Creating Rewards
+```{r}
+
+# subset and ignore NA's
+
+kirby.algorithm<-subset(kirby,is.na(kirby$small_amt)==FALSE)
+  
+
+# create reward groups
+kirby.algorithm$reward<-ifelse((kirby.algorithm$large_amt>=75 & kirby.algorithm$large_amt<=85),3,
+                               ifelse((kirby.algorithm$large_amt>=50 & kirby.algorithm$large_amt<=60),2,1))
+
+
+# check frequencies 
+# check frequencies 
+with(kirby.algorithm,table(worker_id,reward))
+
+# identify reward sizes 
+
+small<-unique(kirby.algorithm$trial_index[kirby.algorithm$reward==1])
+# 7 9 11 15 17 22 24 26 30
+
+medium<-unique(kirby.algorithm$trial_index[kirby.algorithm$reward==2])
+
+# 5 10 12 14 18 20 25 28 31
+
+large<-unique(kirby.algorithm$trial_index[kirby.algorithm$reward==3])
+
+# 6 8 13 16 19 21 23 27 29 
+
+```
+
+#### Coding discount rate 
+```{r}
+kirby.algorithm$kvalue[(kirby.algorithm$small_amt==34 & kirby.algorithm$large_amt==35)|(kirby.algorithm$small_amt==54 & kirby.algorithm$large_amt==55)|(kirby.algorithm$small_amt==78&kirby.algorithm$large_amt==80)]<-0.00016
+
+kirby.algorithm$kvalue[(kirby.algorithm$small_amt==28 & kirby.algorithm$large_amt==30)|(kirby.algorithm$small_amt==47 & kirby.algorithm$large_amt==50)|(kirby.algorithm$small_amt==80 & kirby.algorithm$large_amt==85)]<-0.00040
+
+kirby.algorithm$kvalue[(kirby.algorithm$small_amt==22 & kirby.algorithm$large_amt==25)|(kirby.algorithm$small_amt==54 & kirby.algorithm$large_amt==60)|(kirby.algorithm$small_amt==67 &kirby.algorithm$large_amt==75)]<-0.0010
+
+kirby.algorithm$kvalue[(kirby.algorithm$small_amt==25 & kirby.algorithm$large_amt==30)|(kirby.algorithm$small_amt==49 & kirby.algorithm$large_amt==60)|(kirby.algorithm$small_amt==69&kirby.algorithm$large_amt==85)]<-0.0025
+
+kirby.algorithm$kvalue[(kirby.algorithm$small_amt==19 & kirby.algorithm$large_amt==25)|(kirby.algorithm$small_amt==40& kirby.algorithm$large_amt==55)|(kirby.algorithm$small_amt==55&kirby.algorithm$large_amt==75)]<-0.0060
+
+kirby.algorithm$kvalue[(kirby.algorithm$small_amt==24 & kirby.algorithm$large_amt==35)|(kirby.algorithm$small_amt==34 & kirby.algorithm$large_amt==50)|(kirby.algorithm$small_amt==54&kirby.algorithm$large_amt==80)]<-0.016
+
+kirby.algorithm$kvalue[(kirby.algorithm$small_amt==14 & kirby.algorithm$large_amt==25)|(kirby.algorithm$small_amt==27 & kirby.algorithm$large_amt==50)|(kirby.algorithm$small_amt==41&kirby.algorithm$large_amt==75)]<-0.041
+
+kirby.algorithm$kvalue[(kirby.algorithm$small_amt==15 & kirby.algorithm$large_amt==35)|(kirby.algorithm$small_amt==25 & kirby.algorithm$large_amt==60)|(kirby.algorithm$small_amt==33&kirby.algorithm$large_amt==80)]<-0.10
+
+kirby.algorithm$kvalue[(kirby.algorithm$small_amt==11 & kirby.algorithm$large_amt==30)|(kirby.algorithm$small_amt==20 & kirby.algorithm$large_amt==55)|(kirby.algorithm$small_amt==31&kirby.algorithm$large_amt==85)]<-0.25
+
+# I am only hard coding here because I want to fit the data to match the kirby 2009 paper. In the future, I will make sure to use the hyperbolic function and round 
+
+
+
+kirby.algorithm$key_press<-ifelse(kirby.algorithm$key_press==80, 2, 1)
+# smaller, sooner is 1 and larger, later is 2
+
+```
+
+#### Estimating Parameters 
+``` {r}
+
+# reshape
+
+kirby.algorithm<-dcast(kirby.algorithm, worker_id~trial_index, value.var="key_press")
+colnames(kirby.algorithm)[2:28]<-paste("MCQ", colnames(kirby.algorithm[,c(2:28)]), sep=".")
+
+
+# load lookup tables
+lookup1 <- read.table("/Users/bryanxwu/Desktop/bryanxwu/Documents/Extra_Curricular/Research/Poldrack Lab/Practice/R-Practice-/Kirby/MCQ_Syntax/lookup1MCQ.txt", header = TRUE)
+lookup2 <- read.table("/Users/bryanxwu/Desktop/bryanxwu/Documents/Extra_Curricular/Research/Poldrack Lab/Practice/R-Practice-/Kirby/MCQ_Syntax/lookup2MCQ.txt", header = TRUE)
+lookup3 <- read.table("/Users/bryanxwu/Desktop/bryanxwu/Documents/Extra_Curricular/Research/Poldrack Lab/Practice/R-Practice-/Kirby/MCQ_Syntax/lookup3MCQ.txt", header = TRUE)
+
+#Calculate unique value for each sequence of responses
+
+
+# 7 9 11 15 17 22 24 26 30
+kirby.algorithm$MCQ.7 <- kirby.algorithm$MCQ.7*1
+kirby.algorithm$MCQ.9 <- kirby.algorithm$MCQ.9*2
+kirby.algorithm$MCQ.11 <- kirby.algorithm$MCQ.11*4
+kirby.algorithm$MCQ.15 <- kirby.algorithm$MCQ.15*8
+kirby.algorithm$MCQ.17 <- kirby.algorithm$MCQ.17*16
+kirby.algorithm$MCQ.22 <- kirby.algorithm$MCQ.22*32
+kirby.algorithm$MCQ.24 <- kirby.algorithm$MCQ.24*64
+kirby.algorithm$MCQ.26 <- kirby.algorithm$MCQ.26*128
+kirby.algorithm$MCQ.30 <- kirby.algorithm$MCQ.30*256
+kirby.algorithm$SmlSeq <- with (kirby.algorithm, MCQ.7+ MCQ.9+MCQ.11+MCQ.15+MCQ.17+ MCQ.22+MCQ.24+MCQ.26+MCQ.30-510)
+
+# 5 10 12 14 18 20 25 28 31
+kirby.algorithm$MCQ.5 <- kirby.algorithm$MCQ.5*1
+kirby.algorithm$MCQ.10 <- kirby.algorithm$MCQ.10*2
+kirby.algorithm$MCQ.12 <- kirby.algorithm$MCQ.12*4
+kirby.algorithm$MCQ.14 <- kirby.algorithm$MCQ.14*8
+kirby.algorithm$MCQ.18 <- kirby.algorithm$MCQ.18*16
+kirby.algorithm$MCQ.20 <- kirby.algorithm$MCQ.20*32
+kirby.algorithm$MCQ.25 <- kirby.algorithm$MCQ.25*64
+kirby.algorithm$MCQ.28 <- kirby.algorithm$MCQ.28*128
+kirby.algorithm$MCQ.31 <- kirby.algorithm$MCQ.31*256
+kirby.algorithm$MedSeq <- with (kirby.algorithm, MCQ.5+ MCQ.10+MCQ.12+MCQ.14+MCQ.18+ MCQ.20+MCQ.25+MCQ.28+MCQ.31-510)
+
+# 6 8 13 16 19 21 23 27 29 
+
+kirby.algorithm$MCQ.6 <- kirby.algorithm$MCQ.6*1
+kirby.algorithm$MCQ.8 <- kirby.algorithm$MCQ.8*2
+kirby.algorithm$MCQ.13 <- kirby.algorithm$MCQ.13*4
+kirby.algorithm$MCQ.16 <- kirby.algorithm$MCQ.16*8
+kirby.algorithm$MCQ.19 <- kirby.algorithm$MCQ.19*16
+kirby.algorithm$MCQ.21 <- kirby.algorithm$MCQ.21*32
+kirby.algorithm$MCQ.23 <- kirby.algorithm$MCQ.23*64
+kirby.algorithm$MCQ.27 <- kirby.algorithm$MCQ.27*128
+kirby.algorithm$MCQ.29 <- kirby.algorithm$MCQ.29*256
+kirby.algorithm$LrgSeq <- with (kirby.algorithm, MCQ.6+ MCQ.8+MCQ.13+MCQ.16+MCQ.19+ MCQ.21+MCQ.23+MCQ.27+MCQ.29-510)
+
+#Remove unwanted columns
+kirby5[2:28] <- list(NULL)
+
+
+
+#Merge in MCQindices from lookup table
+kirby5 <- (merge(lookup1, kirby5, by = 'SmlSeq'))
+kirby5 <- (merge(lookup2, kirby5, by = 'MedSeq'))
+kirby5 <- (merge(lookup3, kirby5, by = 'LrgSeq'))
+
+#Return to the original order of rows
+kirby5 <- kirby5[order(kirby5$id),]
+head(kirby5)
+
+#Arrange columns in ideal order
+kirby5 <- kirby5[c(13,9,10,11,12,5,6,7,8,1,2,3,4)]
+
+#Save MCQ indices to a text file
+
+algorithm.results<-melt(kirby5, id.vars=c("id"), measure.vars=c("SmlK", "MedK", "LrgK"), variable.name="reward", value.name="parameter.algorithm")
+
+algorithm.results<-arrange(algorithm.results,id)
+
+
+write.table(algorithm.results, file="/Users/bryanxwu/Desktop/bryanxwu/Documents/Extra_Curricular/Research/Poldrack Lab/Practice/R-Practice-/Kirby/MCQ_Syntax/MCQindices.txt", row.names=FALSE)
+```
+Success
+
+AZE: HOW DO THESE COMPARE TO YOUR PREVIOUS ATTEMPT?

@@ -1,0 +1,259 @@
+---
+title: "Kirby Analysis Script"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+library(tidyr)
+library(reshape2)
+library(ggplot2)
+kirby<-read.csv("/Users/bryanxwu/Desktop/bryanxwu/Documents/Extra_Curricular/Research/Poldrack Lab/Practice/R-Practice-/Kirby/kirby.csv")
+```
+
+
+## Data Setup
+
+This is the correct script to setup the estimated parameter values for Kirby's Monetary Choice Questionaire.  
+
+
+#### Creating Rewards
+```{r}
+
+# extract IDs 
+kirby.test<-separate(kirby,X, c("Kirby", "idtrial"), sep="kirby_")
+kirby.test<-separate(kirby.test,idtrial, c("id", "trial"), sep="_")
+
+# there are 36 participants, and 27 trials per 
+
+# create reward groups
+kirby.test$reward[kirby.test$large_amt>=75 & kirby.test$large_amt<=85]<-3
+kirby.test$reward[kirby.test$large_amt>=50 & kirby.test$large_amt<=60]<-2
+kirby.test$reward[kirby.test$large_amt>=25 & kirby.test$large_amt<=35]<-1
+kirby.test$reward[is.na(kirby.test$large_amt)==TRUE]<-NA
+
+# check frequencies 
+with(kirby.test,table(id,reward))
+
+kirby.test$key_press<-ifelse(kirby.test$key_press==80, 1, 0)
+# smaller, sooner is 0 and larger, later is 1
+``` 
+
+#### Quality Checks
+```{r}
+
+
+# Flag any subects that may have chose immediate/delayed for all
+
+kirby.test %>%
+  filter(!is.na(reward)) %>%
+  group_by(id) %>%
+  summarise(freq=sum(key_press==1)) %>%
+  arrange(desc(freq)) 
+
+kirby.test %>%
+  filter(!is.na(reward)) %>%
+  group_by(id) %>%
+  summarise(freq=sum(key_press==0)) %>%
+  arrange(desc(freq))
+
+
+# subject 33, because participant answered sooner for all 
+
+# now, flag any subjects that answered all immediate or delayed for all trials in at least one of the reward sizes 
+
+kirby.test %>%
+  group_by(id, reward) %>%
+  summarise(freq=sum(key_press==1)) %>%
+  filter(freq==9) %>%
+  select(id) %>%
+  unique()
+  
+
+kirby.test %>%
+  group_by(id, reward) %>%
+  summarise(freq=sum(key_press==0)) %>%
+  filter(freq==9) %>%
+  select(id) %>%
+  unique()
+
+# remove subjects 1, 13, 14, 27, 33, 9, 31 
+
+kirby.test$ignore<-ifelse(kirby.test$id==1|kirby.test$id==13|kirby.test$id==14 |kirby.test$id==27| kirby.test$id==33 |kirby.test$id==9|kirby.test$id==31, NA, 99)
+
+kirby.test<-kirby.test %>%
+  filter(!is.na(reward)) 
+
+```
+
+#### Coding discount rate 
+```{r}
+kirby.test$kvalue[(kirby.test$small_amt==34 & kirby.test$large_amt==35)|(kirby.test$small_amt==54 & kirby.test$large_amt==55)|(kirby.test$small_amt==78&kirby.test$large_amt==80)]<-0.00016
+
+kirby.test$kvalue[(kirby.test$small_amt==28 & kirby.test$large_amt==30)|(kirby.test$small_amt==47 & kirby.test$large_amt==50)|(kirby.test$small_amt==80 & kirby.test$large_amt==85)]<-0.00040
+
+kirby.test$kvalue[(kirby.test$small_amt==22 & kirby.test$large_amt==25)|(kirby.test$small_amt==54 & kirby.test$large_amt==60)|(kirby.test$small_amt==67 &kirby.test$large_amt==75)]<-0.0010
+
+kirby.test$kvalue[(kirby.test$small_amt==25 & kirby.test$large_amt==30)|(kirby.test$small_amt==49 & kirby.test$large_amt==60)|(kirby.test$small_amt==69&kirby.test$large_amt==85)]<-0.0025
+
+kirby.test$kvalue[(kirby.test$small_amt==19 & kirby.test$large_amt==25)|(kirby.test$small_amt==40& kirby.test$large_amt==55)|(kirby.test$small_amt==55&kirby.test$large_amt==75)]<-0.0060
+
+kirby.test$kvalue[(kirby.test$small_amt==24 & kirby.test$large_amt==35)|(kirby.test$small_amt==34 & kirby.test$large_amt==50)|(kirby.test$small_amt==54&kirby.test$large_amt==80)]<-0.016
+
+kirby.test$kvalue[(kirby.test$small_amt==14 & kirby.test$large_amt==25)|(kirby.test$small_amt==27 & kirby.test$large_amt==50)|(kirby.test$small_amt==41&kirby.test$large_amt==75)]<-0.041
+
+kirby.test$kvalue[(kirby.test$small_amt==15 & kirby.test$large_amt==35)|(kirby.test$small_amt==25 & kirby.test$large_amt==60)|(kirby.test$small_amt==33&kirby.test$large_amt==80)]<-0.10
+
+kirby.test$kvalue[(kirby.test$small_amt==11 & kirby.test$large_amt==30)|(kirby.test$small_amt==20 & kirby.test$large_amt==55)|(kirby.test$small_amt==31&kirby.test$large_amt==85)]<-0.25
+
+```
+
+#### Estimating Parameters Part 1
+```{r}
+# start with just one parameter for every participant as a trial 
+
+
+for (i in c(as.numeric(unique(kirby.test$kvalue)))){
+   kirby.test[[paste0('pred',formatC(i, digits=5, format="f"))]]<-0
+}
+
+# finding predicted values 
+
+
+  for (i in 1:nrow(kirby.test)){
+    if ((kirby.test$large_amt[i]/(1+(0.00016*kirby.test$later_del[i])))>kirby.test$small_amt[i])
+      kirby.test$pred0.00016[i]=1
+    if ((kirby.test$large_amt[i]/(1+(0.00040*kirby.test$later_del[i])))>kirby.test$small_amt[i])
+      kirby.test$pred0.00040[i]=1
+    if ((kirby.test$large_amt[i]/(1+(0.00100*kirby.test$later_del[i])))>kirby.test$small_amt[i])
+      kirby.test$pred0.00100[i]=1
+    if ((kirby.test$large_amt[i]/(1+(0.00250*kirby.test$later_del[i])))>kirby.test$small_amt[i])
+      kirby.test$pred0.00250[i]=1
+    if ((kirby.test$large_amt[i]/(1+(0.00600*kirby.test$later_del[i])))>kirby.test$small_amt[i])
+      kirby.test$pred0.00600[i]=1
+    if ((kirby.test$large_amt[i]/(1+(0.01600*kirby.test$later_del[i])))>kirby.test$small_amt[i])
+      kirby.test$pred0.01600[i]=1
+    if ((kirby.test$large_amt[i]/(1+(0.04100*kirby.test$later_del[i])))>kirby.test$small_amt[i])
+      kirby.test$pred0.04100[i]=1
+    if ((kirby.test$large_amt[i]/(1+(0.10000*kirby.test$later_del[i])))>kirby.test$small_amt[i])
+      kirby.test$pred0.10000[i]=1
+    if ((kirby.test$large_amt[i]/(1+(0.25000*kirby.test$later_del[i])))>kirby.test$small_amt[i])
+      kirby.test$pred0.25000[i]=1
+  } 
+
+# finding match percent 
+kirby.output<-kirby.test %>% 
+  group_by(id) %>% 
+    summarise(match0.00016=(sum(pred0.00016==key_press)/length(pred0.00016)),
+    match0.00040=(sum(pred0.00040==key_press)/length(pred0.00040)),
+  	match0.00100=(sum(pred0.00100==key_press)/length(pred0.00100)),
+    match0.00250=(sum(pred0.00250==key_press)/length(pred0.00250)),
+    match0.00600=(sum(pred0.00600==key_press)/length(pred0.00600)),
+    match0.01600=(sum(pred0.01600==key_press)/length(pred0.01600)),
+    match0.04100=(sum(pred0.04100==key_press)/length(pred0.04100)),
+    match0.10000=(sum(pred0.10000==key_press)/length(pred0.10000)),
+    match0.25000=(sum(pred0.25000==key_press)/length(pred0.25000))
+  ) %>%
+  ungroup() %>%
+  group_by(id) %>%
+  gather(name,value,-id) %>%
+  slice(value %>%
+      {. == max(.)} %>%
+          which
+          ) 
+
+kirby.output$parameter[kirby.output$name=="match0.00016"]<-0.00016 
+kirby.output$parameter[kirby.output$name=="match0.00040"]<-0.00040
+kirby.output$parameter[kirby.output$name=="match0.00100"]<-0.00100
+kirby.output$parameter[kirby.output$name=="match0.00250"]<-0.00250
+kirby.output$parameter[kirby.output$name=="match0.00600"]<-0.00600
+kirby.output$parameter[kirby.output$name=="match0.01600"]<-0.01600
+kirby.output$parameter[kirby.output$name=="match0.04100"]<-0.04100
+kirby.output$parameter[kirby.output$name=="match0.10000"]<-0.10000
+kirby.output$parameter[kirby.output$name=="match0.25000"]<-0.25000
+
+
+
+# creating geometric means to get parameter values 
+
+for (i in c(as.numeric(unique(kirby.output$id)))){
+   kirby.output$parameter[kirby.output$id==i]<-prod(kirby.output$parameter[kirby.output$id==i])^(1/length(kirby.output$parameter[kirby.output$id==i]))
+} 
+
+unique(kirby.output[,-2])
+
+
+
+```
+
+Now to estimate separate parameter values for each reward amount 
+
+#### Estimating Parameters Part 2
+``` {r}
+
+# finding match percent 
+kirby.output<-kirby.test %>% 
+  group_by(id, reward) %>% 
+    summarise(match0.00016=(sum(pred0.00016==key_press)/length(pred0.00016)),
+    match0.00040=(sum(pred0.00040==key_press)/length(pred0.00040)),
+  	match0.00100=(sum(pred0.00100==key_press)/length(pred0.00100)),
+    match0.00250=(sum(pred0.00250==key_press)/length(pred0.00250)),
+    match0.00600=(sum(pred0.00600==key_press)/length(pred0.00600)),
+    match0.01600=(sum(pred0.01600==key_press)/length(pred0.01600)),
+    match0.04100=(sum(pred0.04100==key_press)/length(pred0.04100)),
+    match0.10000=(sum(pred0.10000==key_press)/length(pred0.10000)),
+    match0.25000=(sum(pred0.25000==key_press)/length(pred0.25000))
+  ) %>%
+  ungroup() %>%
+  group_by(id,reward) %>% 
+  gather(name,value,-reward,-id) %>%
+  slice(value %>%
+      {. == max(.)} %>%
+          which
+          ) 
+
+kirby.output$parameter[kirby.output$name=="match0.00016"]<-0.00016 
+kirby.output$parameter[kirby.output$name=="match0.00040"]<-0.00040
+kirby.output$parameter[kirby.output$name=="match0.00100"]<-0.00100
+kirby.output$parameter[kirby.output$name=="match0.00250"]<-0.00250
+kirby.output$parameter[kirby.output$name=="match0.00600"]<-0.00600
+kirby.output$parameter[kirby.output$name=="match0.01600"]<-0.01600
+kirby.output$parameter[kirby.output$name=="match0.04100"]<-0.04100
+kirby.output$parameter[kirby.output$name=="match0.10000"]<-0.10000
+kirby.output$parameter[kirby.output$name=="match0.25000"]<-0.25000
+
+
+
+for (i in c(as.numeric(unique(kirby.output$id)))){
+   kirby.output$parameter[kirby.output$id==i & kirby.output$reward==1]<-prod(kirby.output$parameter[kirby.output$id==i & kirby.output$reward==1])^(1/length(kirby.output$parameter[kirby.output$id==i & kirby.output$reward==1]))
+   kirby.output$parameter[kirby.output$id==i & kirby.output$reward==2]<-prod(kirby.output$parameter[kirby.output$id==i & kirby.output$reward==2])^(1/length(kirby.output$parameter[kirby.output$id==i & kirby.output$reward==2]))
+   kirby.output$parameter[kirby.output$id==i & kirby.output$reward==3]<-prod(kirby.output$parameter[kirby.output$id==i & kirby.output$reward==3])^(1/length(kirby.output$parameter[kirby.output$id==i & kirby.output$reward==3]))
+}
+
+
+
+reward.results<-unique(kirby.output[,-3])
+```
+
+Check with algorithm results for sanity check
+
+#### Sanity Check 
+``` {r}
+reward.results$reward<-ifelse(reward.results$reward==1,"SmlK", ifelse(reward.results$reward==2,"MedK","LrgK"))
+reward.results<-reward.results[,-3]
+algorithm.results<-read.table("/Users/bryanxwu/Desktop/bryanxwu/Documents/Extra_Curricular/Research/Poldrack Lab/Practice/R-Practice-/Kirby/MCQ_Syntax/MCQindices.txt", header=TRUE)
+
+
+output.check<-merge(reward.results,algorithm.results,by=c("id","reward"))
+
+output.check %>%
+  group_by(reward) %>%
+  summarise(correlation=cor(parameter,parameter.algorithm))
+
+
+ggplot(output.check, aes(x = parameter, y = parameter.algorithm,color = reward)) + 
+  geom_point() + geom_smooth(method = "lm", se=FALSE)+labs(x="coded parameter", y="algorithm parameter")
+
+
+```
