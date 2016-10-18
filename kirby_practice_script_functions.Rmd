@@ -37,7 +37,6 @@ with(kirby.test,table(worker_id,reward))
 
 kirby.test$key_press<-ifelse(kirby.test$key_press==80, 2, 1)
 # smaller, sooner is 1 and larger, later is 2
-# I will code it the same way as Gray et al. (2016) did to maintain consistency
 ``` 
 
 #### Quality Checks
@@ -52,8 +51,6 @@ kirby.test %>%
   select(worker_id) %>%
   unique()
 
-# 1 participant answered sooner for all 
-
 # now, flag any subjects that answered all immediate or delayed for all trials in at least one of the reward sizes 
 
 kirby.test %>%
@@ -62,12 +59,13 @@ kirby.test %>%
    filter(freqimp==length(kirby.test$key_press)/(length(unique(kirby.test$worker_id))*length(unique(kirby.test$reward)))|freqdel==length(kirby.test$key_press)/(length(unique(kirby.test$worker_id))*length(unique(kirby.test$reward)))) %>%
   select(worker_id) %>%
   unique()
-  
-# 7 subjects
 ```
+It appears that one subject chose the immediate reward for all trials and there were seven subjects that answered either all immediate or all delayed for all trials in at least one of the reward sizes. 
 
 #### Coding discount rate 
 ```{r}
+# hard coding discount rates 
+
 kirby.test$kvalue[(kirby.test$small_amt==34 & kirby.test$large_amt==35)|(kirby.test$small_amt==54 & kirby.test$large_amt==55)|(kirby.test$small_amt==78&kirby.test$large_amt==80)]<-0.00016
 kirby.test$kvalue[(kirby.test$small_amt==28 & kirby.test$large_amt==30)|(kirby.test$small_amt==47 & kirby.test$large_amt==50)|(kirby.test$small_amt==80 & kirby.test$large_amt==85)]<-0.00040
 kirby.test$kvalue[(kirby.test$small_amt==22 & kirby.test$large_amt==25)|(kirby.test$small_amt==54 & kirby.test$large_amt==60)|(kirby.test$small_amt==67 &kirby.test$large_amt==75)]<-0.0010
@@ -80,44 +78,25 @@ kirby.test$kvalue[(kirby.test$small_amt==11 & kirby.test$large_amt==30)|(kirby.t
 
 # I am only hard coding here because I want to fit the data to match the kirby 2009 paper. In the future, I will make sure to use the hyperbolic function and round 
 
+# Since the estimated parameter is going to be somewhere in the middle the kvalues where the participant impatient and then patient, we must create new discount rates that are the geometric means between values. Then there are also the bounds, in which the upper and lower discount rates stay the same. 
+
+# creating discount rates with geometric means and bounds 
+
+kvector<-c(0.00016,prod(0.00016,0.0004)^0.5,prod(0.00040,0.00100)^0.5,prod(0.00100,0.00250)^0.5, prod(0.00250,0.00600)^0.5, 
+           prod(0.00600,0.01600)^0.5, prod(0.01600,0.04100)^0.5,prod(0.04100,0.10000)^0.5,prod(0.10000,0.25000)^0.5, 0.25000)
+
+
 ```
+I am only hard coding here because I want to fit the data to match the kirby 2009 paper. In the future, I will make sure to use the hyperbolic function and round. And since the estimated parameter is going to be somewhere in the middle the kvalues where the participant impatient and then patient, we must create new discount rates that are the geometric means between values. Then there are also the bounds, in which the upper and lower discount rates stay the same. 
 
 #### Estimating Parameters Part 1 (Overall k)
 ```{r}
-# finding predicted values 
 
-kirby.test<-function.predicted.values(kirby.test,kirby.test$kvalue,kirby.test$large_amt,kirby.test$later_del,kirby.test$small_amt)
-
-# create duplicate predicted columns that are renamed into match columns
-
-kirby.overall.output<-create.match(kirby.overall.output,kirby.test)
-
-# finding match percent by repopulating match columns
-
-kirby.overall.output<-match.percent(kirby.overall.output,kirby.overall.output$worker_id,kirby.overall.output$key_press)
-
-# finding highest match percent for each participant
-
-kirby.overall.output<-kirby.overall.output[,c("worker_id",names(kirby.overall.output[grep("match",colnames(kirby.overall.output))]))] %>% 
-  group_by(worker_id) %>%
-  gather(name,consistency,-worker_id) %>%
-  slice(consistency %>%
-      {. == max(.)} %>%
-          which
-          ) %>%
-  mutate(parameter=
-as.numeric(gsub("^.*\\match", "", name)))
-
-# identify highest match percent  
-
-# creating geometric means to get parameter values 
-
-kirby.overall.output$parameter<-overall.parameter(kirby.overall.output$worker_id,kirby.overall.output$parameter)
-
-kirby.overall.output<-unique(kirby.overall.output[,c("worker_id", "consistency", "parameter")])
+kirby.overall.output<-kirby.test%>%
+  group_by(worker_id) %>% 
+  do(calc.parameter(.,kvector,.$large_amt,.$later_del,.$small_amt,.$key_press)) # run function that is called from source file
   
-write.table(unique(kirby.overall.output[,c("worker_id", "consistency", "parameter")]), file="/Users/bryanxwu/Desktop/bryanxwu/Documents/Extra_Curricular/Research/Poldrack Lab/Practice/R-Practice-/Kirby/Overall_Parameters", row.names=FALSE)
-
+write.table(kirby.overall.output, file="/Users/bryanxwu/Desktop/bryanxwu/Documents/Extra_Curricular/Research/Poldrack Lab/Practice/R-Practice-/Kirby/Overall_Parameters", row.names=FALSE)
 
 ```
 
@@ -126,32 +105,14 @@ Now to estimate separate parameter values for each reward amount
 #### Estimating Parameters Part 2 (Reward k)
 ``` {r}
 
-# finding match percent 
+kirby.reward.output<-kirby.test%>% 
+  group_by(worker_id,reward) %>% 
+  do(calc.parameter(.,kvector,.$large_amt,.$later_del,.$small_amt,.$key_press)) # all you have to do is group by reward to get unique discount parameters 
 
-kirby.reward.output<-create.match(kirby.reward.output,kirby.test)
-
-kirby.reward.output<-match.percent.reward(kirby.reward.output,kirby.reward.output$worker_id,kirby.reward.output$reward,kirby.reward.output$key_press)
-
-
-# identify highest match percent
-
-kirby.reward.output<-kirby.reward.output[,c("worker_id","reward",names(kirby.reward.output[grep("match",colnames(kirby.reward.output))]))] %>% 
-  group_by(worker_id, reward) %>%
-  gather(name,consistency,-reward,-worker_id) %>%
-  slice(consistency %>%
-      {. == max(.)} %>%
-          which
-          ) %>%
-  mutate(parameter=
-as.numeric(gsub("^.*\\match", "", name)))
 
 # creating geometric means to get parameter values 
 
-kirby.reward.output$parameter<-reward.parameter(kirby.reward.output$worker_id,kirby.reward.output$reward,kirby.reward.output$parameter)
-
-kirby.reward.output<-unique(kirby.reward.output[,c("worker_id","reward", "consistency","parameter")])
-
-write.table(unique(kirby.reward.output[,c("worker_id","reward", "consistency","parameter")]), file="/Users/bryanxwu/Desktop/bryanxwu/Documents/Extra_Curricular/Research/Poldrack Lab/Practice/R-Practice-/Kirby/Reward_Parameters", row.names=FALSE)
+write.table(kirby.reward.output, file="/Users/bryanxwu/Desktop/bryanxwu/Documents/Extra_Curricular/Research/Poldrack Lab/Practice/R-Practice-/Kirby/Reward_Parameters", row.names=FALSE)
 
 
 ```
@@ -177,19 +138,19 @@ ggplot(kirby.reward.output, aes(x=consistency, color=as.factor(reward)))+geom_de
 
 # checking how well script output matches kirby et al. 1999
 
-kirby.overall.output<-kirby.test %>% group_by(worker_id) %>% summarise(delayed_freq=sum(key_press-1)/n()) %>% left_join(kirby.overall.output, by="worker_id")
+kirby.overall.output<-kirby.test %>% group_by(worker_id) %>% summarise(delayed_freq=sum(key_press-1)/n()) %>% left_join(kirby.overall.output, by="worker_id") 
 
-with(kirby.overall.output, cor(parameter,delayed_freq))
-summary(lm(delayed_freq~log(parameter),data=kirby.overall.output))
+with(kirby.overall.output, cor(parameter,delayed_freq)) # check correlation between parameter and delayed frequency
 
+summary(lm(delayed_freq~log(parameter),data=kirby.overall.output)) # check how parameter affects delay
 
-kirby.reward.output<-kirby.test %>% group_by(worker_id, reward) %>% summarise(delayed_freq=sum(key_press-1)/n()) %>% left_join(kirby.reward.output, by=c("worker_id","reward"))
+kirby.reward.output<-kirby.test %>% group_by(worker_id, reward) %>% summarise(delayed_freq=sum(key_press-1)/n()) %>% left_join(kirby.reward.output, by=c("worker_id","reward")) 
+
+summary(lme(delayed_freq~log(parameter), random= ~ 1|as.factor(reward),data=kirby.reward.output)) # check parameter effects on delay, while controlling for different reward values 
 
 kirby.reward.output %>% group_by(reward) %>% summarise(cor.parameter.choice=cor(parameter,delayed_freq))
-summary(lme(log(parameter)~as.factor(reward), random= ~ 1|worker_id,data=kirby.reward.output))
 
-summary(lme(delayed_freq~log(parameter), random= ~ 1|as.factor(reward),data=kirby.reward.output))
-
+summary(lme(log(parameter)~as.factor(reward), random= ~ 1|worker_id,data=kirby.reward.output)) # checking magnitude effects, while controlling for different participants and their repeated trials with different reward values. 
 
 ```
 First off, it seems that the parameter estimates for the algorithm do not match up perfectly with the parameter estimates from the kirby script that I ran. Looking at a plot of both estimates, it seems that overall the kirby script estimates lower parameters, whereas the algorithm estimates higher ones. In addition, the algorithm uses rounded estimates compared to mine.
@@ -197,4 +158,5 @@ First off, it seems that the parameter estimates for the algorithm do not match 
 Looking at the consistencies, the algorithm's percent match with each parameter does not follow a skewed curve to the right, whereas my script does show this. I believe the correct script should output a density of consistencies that lean towards the right tail where parameter estimates should correctly predict at least 80-100% of choices. 
 
 The discrepancies may be due to how the algorithm is coded and how Gray et al. calculated the parameters/consistencies. Regardless of how the algorithm output compares to the Kirby script, it seems that the Kirby script is producing results similar to what was found in Kirby et al. 1999. First off, there is a very strong negative correlation between percent of delayed choices with the parameter estimate. Second, there is a negative effect of parameter size on percent of delayed choices, controlling for reward size. And third, there seems to be a significantly negative effect of reward on parameter sizes. 
+
 
